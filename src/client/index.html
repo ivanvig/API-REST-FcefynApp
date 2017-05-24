@@ -1,0 +1,19 @@
+<!doctype html>
+<html ng-app="donde">
+	<head>
+		<title>Hello AngularJS</title>
+		<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.3/angular.min.js"></script>
+    	<script src="client.js"></script>
+	</head>
+
+	<body>
+		<div ng-controller="titulos">
+                <div ng-repeat="titulo in titulos">
+                    <h1 ng-click="cargar(titulo.id)">{{titulo.title}}</h1>
+                    <h5>{{noticia[$index].fecha}}</h5>
+                    <p>{{noticia[$index].description}}</p>
+                </div>
+        </div>
+                
+	</body>
+</html> 
