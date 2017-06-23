@@ -109,13 +109,24 @@ def crear_noticia():
 
 @app.route(ROOT_PATH + '/noticias/<int:noticia_id>', methods=['DELETE'])
 def delete_noticia(noticia_id):
-    toremove = [noticia for noticia in noticias if noticia['id'] == request.json['id']]
+    toremove = [noticia for noticia in noticias if noticia['id'] == noticia_id]
     if not len(toremove):
         abort(404)
 
     noticias.remove(toremove[0])
 
     return jsonify(True)
+
+
+@app.router(ROOT_PATH + '/noticias/<int:noticia_id>', methods=['PUT'])
+def modify_noticia(noticia_id):
+    noticia = [noticia for noticia in noticias if noticia['id'] == noticia_id][0]
+    if not len(noticia) or not request.json:        # AGREGAR MAS COSAS ACA, VER EN PAGINA
+        abort(404)
+
+    noticia['title'] = request.json.get('title', noticia['title'])
+    noticia['description'] = request.json.get('description', noticia['description'])
+    noticia['fecha'] = request.json.get('fecha', noticia['fecha'])
 
 
 if __name__ == '__main__':
