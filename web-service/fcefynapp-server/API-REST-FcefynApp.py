@@ -4,6 +4,73 @@ from flask import Flask, request, session, g, redirect, url_for, abort, make_res
 from datetime import datetime, timedelta
 from functools import update_wrapper
 
+
+class Publicacion(object):                                  # TODO: Limitar setters
+
+    def __init__(self):
+        self._id = None
+        self._title = None
+        self._content = None
+        self._fecha = None
+
+    def loadfromdb(self, idd):
+        db = get_db()
+        cur = db.execute('SELECT title, content, fecha FROM PUBLICACIONES WHERE id == ?', (idd,))
+        entries = cur.fetchall()
+        entry = entries[0]
+        self.setid(idd)
+        self.settitle(entry['title'])
+        self.setcontent(entry['content'])
+        self.setfecha(entry['fecha'])
+
+    def loadfromjson(self, json):
+        pub = json['publicacion']
+        self.settitle(pub['title'])
+        self.setcontent(pub['content'])
+        self.setfecha(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+    def getjson(self):
+        return jsonify(publicacion=dict(id=self.getid(), title=self.gettitle(), content=self.getcontent(), fecha=self.getfecha()))
+
+    def saveintodb(self):
+        db = get_db()
+        db.execute('INSERT INTO PUBLICACIONES (title, content, fecha) VALUES (?,?,?)', (self.gettitle(), self.content(), self.fecha()))
+        db.commit()
+
+    def deletefromdb(self):
+        db = get_db()
+        db.execute('DELETE FROM PUBLICACIONES WHERE id == ?', (self.getid(),))
+        db.commit()
+
+    def updatedb(self):
+        db = get_db()
+        db.execute('UPDATE PUBLICACIONES SET title = ?, content = ?, fecha = ? WHERE id == ?', (self.gettitle(), self.content(), self.fecha(), self.getid()))
+
+    def settitle(self, title):
+        self._title = title
+
+    def setcontent(self, content):
+        self._content = content
+
+    def setfecha(self, fecha):
+        self._fecha = fecha
+
+    def setid(self, idd):
+        self._id = idd
+
+    def gettitle(self):
+        return self._title
+
+    def getcontent(self):
+        return self._content
+
+    def getfecha(self):
+        return self._fecha
+
+    def getid(self):
+        return self._id
+
+
 app = Flask(__name__)
 app.config.from_object(__name__)
 
@@ -14,6 +81,7 @@ app.config.update(dict(
     PASSWORD='pass'
 ))
 app.config.from_envvar('FCEFYNAPP_SETTINGS', silent=True)
+
 
 def connect_db():
     """Conexion con la db"""
@@ -100,7 +168,7 @@ def crossdomain(origin=None, methods=None, headers=None,
 
 @app.route('/publicaciones/', methods=['GET'])
 @crossdomain(origin='*')
-def get_noticias():
+def get_allpub():
     db = get_db()
     cur = db.execute('SELECT id, title FROM PUBLICACIONES ORDER BY ID DESC')
     entries = cur.fetchall()
@@ -109,34 +177,42 @@ def get_noticias():
 
 @app.route('/publicaciones/<int:publicacion_id>/', methods=['GET'])
 @crossdomain(origin='*')
-def get_noticia(publicacion_id):
-    db = get_db()
-    cur = db.execute('SELECT title, content FROM PUBLICACIONES WHERE id == ?', publicacion_id)
-    entries = cur.fetchall()
-    entries = entries[0]
-    return jsonify(publicacion=dict(title=entries['title'], content=entries['content'], fecha=entries['fecha']))
+def get_publicacion(publicacion_id):
+    pub = Publicacion()
+    pub.loadfromdb(publicacion_id)
+    return pub.getjson()
 
 
 @app.route('/publicaciones/', methods=['POST'])
-def crear_noticia():                                                              # TODO: implementar seguridad
+def crear_publicacion():                                                              # TODO: implementar seguridad
     if not request.json or 'title' not in request.json:
         abort(400)
 
-    title = request.json['title']
-    content = request.json['content']
-    fecha = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    db = get_db()
-    db.execute('INSERT INTO PUBLICACIONES (title, content, fecha) VALUES (?,?,?)', [title, content, fecha])
-    db.commit()
-    return jsonify(publicacion=dict(title=title, content=content, fecha=fecha)), 201
+    pub = Publicacion()
+    pub.loadfromjson(request.json)
+    pub.saveintodb()
+
+    return pub.getjson(), 201
 
 
 @app.route('/publicaciones/<int:publicacion_id>/', methods=['DELETE'])
-def delete_noticia(publicacion_id):                                             # TODO: implementar seguridad
-    db = get_db()
-    db.execute('DELETE FROM PUBLICACIONES WHERE id == ?', publicacion_id)
-    db.commit()
+def delete_publicacion(publicacion_id):                                             # TODO: implementar seguridad
+    pub = Publicacion()
+    pub.loadfromdb(publicacion_id)
+    pub.deletefromdb()
 
-    return jsonify(True)
+    return pub.getjson()
 
-# TODO: implementar modificar una publicacion
+
+@app.route('/publicaciones/<int:publicacion_id>', methods=['PUT'])
+def modify_publicacion(publicacion_id):                                            # TODO: implementar seguridad
+    if not request.json:
+        abort(404)
+
+    pub = Publicacion()
+    pub.loadfromdb(publicacion_id)
+    pub.loadfromjson(request.json)
+    pub.updatedb()
+
+    return pub.getjson()
+
