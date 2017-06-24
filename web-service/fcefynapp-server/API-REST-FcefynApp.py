@@ -25,8 +25,8 @@ class Publicacion(object):                                  # TODO: Limitar sett
 
     def loadfromjson(self, json):
         pub = json['publicacion']
-        self.settitle(pub['title'])
-        self.setcontent(pub['content'])
+        self.settitle(pub.get('title', self.gettitle()))
+        self.setcontent(pub.get('content', self.getcontent()))
         self.setfecha(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
     def getjson(self):
@@ -34,7 +34,8 @@ class Publicacion(object):                                  # TODO: Limitar sett
 
     def saveintodb(self):
         db = get_db()
-        db.execute('INSERT INTO PUBLICACIONES (title, content, fecha) VALUES (?,?,?)', (self.gettitle(), self.content(), self.fecha()))
+        cur = db.execute('INSERT INTO PUBLICACIONES (title, content, fecha) VALUES (?,?,?)', (self.gettitle(), self.getcontent(), self.getfecha()))
+        self.setid(cur.lastrowid)
         db.commit()
 
     def deletefromdb(self):
@@ -44,7 +45,8 @@ class Publicacion(object):                                  # TODO: Limitar sett
 
     def updatedb(self):
         db = get_db()
-        db.execute('UPDATE PUBLICACIONES SET title = ?, content = ?, fecha = ? WHERE id == ?', (self.gettitle(), self.content(), self.fecha(), self.getid()))
+        db.execute('UPDATE PUBLICACIONES SET title = ?, content = ?, fecha = ? WHERE id == ?', (self.gettitle(), self.getcontent(), self.getfecha(), self.getid()))
+        db.commit()
 
     def settitle(self, title):
         self._title = title
@@ -75,7 +77,7 @@ app = Flask(__name__)
 app.config.from_object(__name__)
 
 app.config.update(dict(
-    DATABASE=os.path.join(app.root_path, 'database/fcefynapp.db'),
+    DATABASE=os.path.join(app.root_path, '../database/fcefynapp.db'),
     KEY='dev',
     USERNAME='admin',
     PASSWORD='pass'
@@ -185,11 +187,11 @@ def get_publicacion(publicacion_id):
 
 @app.route('/publicaciones/', methods=['POST'])
 def crear_publicacion():                                                              # TODO: implementar seguridad
-    if not request.json or 'title' not in request.json:
+    if not request.is_json():
         abort(400)
 
     pub = Publicacion()
-    pub.loadfromjson(request.json)
+    pub.loadfromjson(request.get_json())
     pub.saveintodb()
 
     return pub.getjson(), 201
@@ -206,12 +208,12 @@ def delete_publicacion(publicacion_id):                                         
 
 @app.route('/publicaciones/<int:publicacion_id>', methods=['PUT'])
 def modify_publicacion(publicacion_id):                                            # TODO: implementar seguridad
-    if not request.json:
+    if not request.is_json:
         abort(404)
 
     pub = Publicacion()
     pub.loadfromdb(publicacion_id)
-    pub.loadfromjson(request.json)
+    pub.loadfromjson(request.get_json())
     pub.updatedb()
 
     return pub.getjson()
