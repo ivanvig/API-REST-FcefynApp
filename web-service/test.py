@@ -78,7 +78,7 @@ def index():
     return jsonify({'lugar': 'index'})
 
 
-@app.route(ROOT_PATH + '/noticias/', methods=['GET'])
+@app.route(ROOT_PATH + '/noticias/', methods=['GET'])           #  IMPLEMENTADO
 @crossdomain(origin='*')
 def get_noticias():
     return jsonify({'titulos': [{'id': noticia['id'], 'title': noticia['title']} for noticia in noticias]})
@@ -118,7 +118,7 @@ def delete_noticia(noticia_id):
     return jsonify(True)
 
 
-@app.router(ROOT_PATH + '/noticias/<int:noticia_id>', methods=['PUT'])
+@app.route(ROOT_PATH + '/noticias/<int:noticia_id>', methods=['PUT'])
 def modify_noticia(noticia_id):
     noticia = [noticia for noticia in noticias if noticia['id'] == noticia_id][0]
     if not len(noticia) or not request.json:        # AGREGAR MAS COSAS ACA, VER EN PAGINA
