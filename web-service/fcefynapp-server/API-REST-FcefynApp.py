@@ -73,12 +73,51 @@ class Publicacion(object):                                  # TODO: Limitar sett
         return self._id
 
 
+class User(object):
+
+    def __init__(self):
+        self._user = None
+        self._pass = None
+
+    def loaduserfromdb(self, user):
+        db = get_db()
+        cur = db.execute('SELECT pass FROM USUARIOS WHERE user == ?', (user,))
+        entries = cur.fetchall()
+        entry = entries[0]
+        self.setpass(entry['pass'])
+        self.setuser(entry['user'])
+
+    def loaduserfromjson(self, json):
+        us = json['usuario']
+        self.setuser(us['acc'])
+        self.setpass(us['pass'])
+
+    def matchdb(self):
+        db = get_db()
+        cur = db.execute('SELECT pass FROM USUARIOS WHERE user == ?', (self.getuser(),))
+        entry = cur.fetchall()[0]
+
+        return entry['pass'] == self.getpass()
+
+    def setpass(self, pwd):
+        self._pass = pwd
+
+    def setuser(self, user):
+        self._user = user
+
+    def getuser(self):
+        return self._user
+
+    def getpass(self):
+        return self._pass
+
+
 app = Flask(__name__)
 app.config.from_object(__name__)
 
 app.config.update(dict(
     DATABASE=os.path.join(app.root_path, '../database/fcefynapp.db'),
-    KEY='dev',
+    SECRET_KEY='(\xcc\xa3+\xf6-\xa2\xe9\x98\tkd\n\xad\xa0\n9\xf0\x8bv\xefs\xd9\x04',
     USERNAME='admin',
     PASSWORD='pass'
 ))
@@ -186,7 +225,11 @@ def get_publicacion(publicacion_id):
 
 
 @app.route('/publicaciones/', methods=['POST'])
-def crear_publicacion():                                                              # TODO: implementar seguridad
+def crear_publicacion():
+
+    if not session.get('logged_in'):
+        abort(401)
+
     if not request.is_json():
         abort(400)
 
@@ -198,7 +241,11 @@ def crear_publicacion():                                                        
 
 
 @app.route('/publicaciones/<int:publicacion_id>/', methods=['DELETE'])
-def delete_publicacion(publicacion_id):                                             # TODO: implementar seguridad
+def delete_publicacion(publicacion_id):
+
+    if not session.get('logged_in'):
+        abort(401)
+
     pub = Publicacion()
     pub.loadfromdb(publicacion_id)
     pub.deletefromdb()
@@ -207,9 +254,13 @@ def delete_publicacion(publicacion_id):                                         
 
 
 @app.route('/publicaciones/<int:publicacion_id>', methods=['PUT'])
-def modify_publicacion(publicacion_id):                                            # TODO: implementar seguridad
+def modify_publicacion(publicacion_id):
+
+    if not session.get('logged_in'):
+        abort(401)
+
     if not request.is_json:
-        abort(404)
+        abort(400)
 
     pub = Publicacion()
     pub.loadfromdb(publicacion_id)
@@ -218,3 +269,22 @@ def modify_publicacion(publicacion_id):                                         
 
     return pub.getjson()
 
+
+@app.route('/login', methods=['POST'])
+def login():
+    if not request.is_json:
+        abort(400)
+    user = User()
+    user.loaduserfromjson(request.get_json())
+    if user.matchdb():
+        session['logged_in'] = True
+        return jsonify(logged=True)
+    else:
+        return jsonify(logged=False)
+
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+
+    return jsonify(logged_out=True)
