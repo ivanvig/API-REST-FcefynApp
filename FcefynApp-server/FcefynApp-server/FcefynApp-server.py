@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from flask import Flask, request, session, g, redirect, url_for, abort, make_response, current_app, jsonify
+from flask import Flask, request, session, g, url_for, abort, make_response, current_app, jsonify
 from datetime import datetime, timedelta
 from functools import update_wrapper
 
