@@ -1,0 +1,4 @@
+INSERT INTO PUBLICACIONES (title, content, fecha) VALUES ('La ruta del dinero G', 'Gopez Laston investigado por desvio de fondos de la UNC, luego de una larga investigacion en la que participaron unidiades de la PFA, FPA y el grupo HALCON se allanaron hoy las oficinas del señor Gopez y se encontraron documentos compremetedores que demostrarian un desvio de fondo y un vaciamiento de las arcas de la FCEFyN''', null);
+INSERT INTO PUBLICACIONES (title, content, fecha) VALUES ('test2', 'testing 2testing2', '2017-06-24 13:49:22');
+INSERT INTO PUBLICACIONES (title, content, fecha) VALUES ('nuevo title', 'jeje', '2017-06-24 16:55:07');
+INSERT INTO USUARIOS (user, nombre, email, pass, admin) VALUES ('admin', 'asd', 're', 'test', 'FALSE');
