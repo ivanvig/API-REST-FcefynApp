@@ -29,12 +29,28 @@ class Publicacion(object):                                  # TODO: Limitar sett
         self.setcontent(pub.get('content', self.getcontent()))
         self.setfecha(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
+        if not self.gettitle() or not self.getcontent():
+            raise ValueError
+
     def getjson(self):
-        return jsonify(publicacion=dict(id=self.getid(), title=self.gettitle(), content=self.getcontent(), fecha=self.getfecha()))
+
+        return jsonify(
+            publicacion=dict(
+                id=self.getid(),
+                title=self.gettitle(),
+                content=self.getcontent(),
+                fecha=self.getfecha()
+            )
+        )
 
     def saveintodb(self):
         db = get_db()
-        cur = db.execute('INSERT INTO PUBLICACIONES (title, content, fecha) VALUES (?,?,?)', (self.gettitle(), self.getcontent(), self.getfecha()))
+
+        cur = db.execute(
+            'INSERT INTO PUBLICACIONES (title, content, fecha) VALUES (?,?,?)',
+            (self.gettitle(), self.getcontent(), self.getfecha())
+        )
+
         self.setid(cur.lastrowid)
         db.commit()
 
@@ -45,7 +61,12 @@ class Publicacion(object):                                  # TODO: Limitar sett
 
     def updatedb(self):
         db = get_db()
-        db.execute('UPDATE PUBLICACIONES SET title = ?, content = ?, fecha = ? WHERE id == ?', (self.gettitle(), self.getcontent(), self.getfecha(), self.getid()))
+
+        db.execute(
+            'UPDATE PUBLICACIONES SET title = ?, content = ?, fecha = ? WHERE id == ?',
+            (self.gettitle(), self.getcontent(), self.getfecha(), self.getid())
+        )
+
         db.commit()
 
     def settitle(self, title):
@@ -70,31 +91,48 @@ class Publicacion(object):                                  # TODO: Limitar sett
         return self._fecha
 
     def getid(self):
-        return self._id
+        return public_id(self._id)
 
 
 class User(object):
 
     def __init__(self):
         self._user = None
+        self._nombre = None
+        self._email = None
         self._pass = None
 
-    def loaduserfromdb(self, user):
+    def loaduserfromdb(self, email):
         db = get_db()
-        cur = db.execute('SELECT pass FROM USUARIOS WHERE user == ?', (user,))
+        cur = db.execute('SELECT pass FROM USUARIOS WHERE email == ?', (email,))
         entries = cur.fetchall()
         entry = entries[0]
         self.setpass(entry['pass'])
-        self.setuser(entry['user'])
+        self.setemail(entry['user'])
 
     def loaduserfromjson(self, json):
-        us = json['usuario']
-        self.setuser(us['acc'])
-        self.setpass(us['pass'])
+        if 'registro' in json:
+            us = json['registro']
+            self.setuser(us['acc'])
+            self.setpass(us['pwd'])
+            self.setnombre(us['nombre'])
+            self.setemail(us['email'])
+        elif 'usuario' in json:
+            us = json['usuario']
+            self.setemail(us['acc'])            # Esto habria que cambiar
+            self.setpass(us['pwd'])
+        else:
+            raise TypeError
+
+    def registerindb(self):
+        db = get_db()
+        db.execute('INSERT INTO USUARIOS (user, nombre, email, pass) VALUES (?,?,?,?)',
+                   (self.getuser(), self.getnombre(), self.getemail(), self.getpass()))
+        db.commit()
 
     def matchdb(self):
         db = get_db()
-        cur = db.execute('SELECT pass FROM USUARIOS WHERE user == ?', (self.getuser(),))
+        cur = db.execute('SELECT pass FROM USUARIOS WHERE email == ?', (self.getemail(),))
         entry = cur.fetchall()[0]
 
         return entry['pass'] == self.getpass()
@@ -105,8 +143,20 @@ class User(object):
     def setuser(self, user):
         self._user = user
 
+    def setnombre(self, nombre):
+        self._nombre = nombre
+
+    def setemail(self, email):
+        self._email = email
+
+    def getnombre(self):
+        return self._nombre
+
     def getuser(self):
         return self._user
+
+    def getemail(self):
+        return self._email
 
     def getpass(self):
         return self._pass
@@ -119,7 +169,8 @@ app.config.update(dict(
     DATABASE=os.path.join(app.root_path, '../database/fcefynapp.db'),
     SECRET_KEY='(\xcc\xa3+\xf6-\xa2\xe9\x98\tkd\n\xad\xa0\n9\xf0\x8bv\xefs\xd9\x04',
     USERNAME='admin',
-    PASSWORD='pass'
+    PASSWORD='test',
+    DEBUG=True
 ))
 app.config.from_envvar('FCEFYNAPP_SETTINGS', silent=True)
 
@@ -207,20 +258,30 @@ def crossdomain(origin=None, methods=None, headers=None,
     return decorator
 
 
+def public_id(idd):
+    return url_for('get_publicacion', publicacion_id=idd, _external=True)
+
+
 @app.route('/publicaciones/', methods=['GET'])
 @crossdomain(origin='*')
 def get_allpub():
     db = get_db()
     cur = db.execute('SELECT id, title FROM PUBLICACIONES ORDER BY ID DESC')
     entries = cur.fetchall()
-    return jsonify(publicaciones=dict(publicacion=[dict(id=entry['id'], title=entry['title']) for entry in entries]))
+    return jsonify(
+        publicaciones=dict(publicacion=[dict(id=public_id(entry['id']), title=entry['title']) for entry in entries])
+    )
 
 
 @app.route('/publicaciones/<int:publicacion_id>/', methods=['GET'])
 @crossdomain(origin='*')
 def get_publicacion(publicacion_id):
     pub = Publicacion()
-    pub.loadfromdb(publicacion_id)
+    try:
+        pub.loadfromdb(publicacion_id)
+    except IndexError:
+        abort(404)
+
     return pub.getjson()
 
 
@@ -230,14 +291,34 @@ def crear_publicacion():
     if not session.get('logged_in'):
         abort(401)
 
-    if not request.is_json():
+    if not request.is_json:
         abort(400)
 
     pub = Publicacion()
-    pub.loadfromjson(request.get_json())
+    try:
+        pub.loadfromjson(request.get_json())
+    except (ValueError, TypeError):
+        abort(400)
     pub.saveintodb()
 
     return pub.getjson(), 201
+
+
+@app.route('/registro/', methods=['POST'])
+def registrar():
+    if not request.is_json:
+        abort(400)
+
+    user = User()
+
+    try:
+        user.loaduserfromjson(request.get_json())
+    except (TypeError, KeyError):
+        abort(400)
+
+    user.registerindb()
+
+    return jsonify(registrado=True)
 
 
 @app.route('/publicaciones/<int:publicacion_id>/', methods=['DELETE'])
@@ -253,7 +334,7 @@ def delete_publicacion(publicacion_id):
     return pub.getjson()
 
 
-@app.route('/publicaciones/<int:publicacion_id>', methods=['PUT'])
+@app.route('/publicaciones/<int:publicacion_id>/', methods=['PUT'])
 def modify_publicacion(publicacion_id):
 
     if not session.get('logged_in'):
@@ -264,13 +345,17 @@ def modify_publicacion(publicacion_id):
 
     pub = Publicacion()
     pub.loadfromdb(publicacion_id)
-    pub.loadfromjson(request.get_json())
+    try:
+        pub.loadfromjson(request.get_json())
+    except TypeError:
+        abort(400)
+
     pub.updatedb()
 
     return pub.getjson()
 
 
-@app.route('/login', methods=['POST'])
+@app.route('/login/', methods=['POST'])
 def login():
     if not request.is_json:
         abort(400)
@@ -283,8 +368,10 @@ def login():
         return jsonify(logged=False)
 
 
-@app.route('/logout')
+@app.route('/logout/')
 def logout():
     session.pop('logged_in', None)
 
     return jsonify(logged_out=True)
+
+# TODO: LIMITAR SETTERS SEGUN REQUERIMIENTOS, IMPLEMENTAR OBSERVER, IMPLEMENTAR PERMISO DE ADMIN, LOGS

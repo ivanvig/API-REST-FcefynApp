@@ -1,2 +1,2 @@
-from .FcefynAppServer import app
+from .FcefynAppServer import *
 
