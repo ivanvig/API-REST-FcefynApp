@@ -187,6 +187,44 @@ class FcefynAppServerTestCase(unittest.TestCase):
             )
             self.assertEqual(json.loads(response.get_data())['publicacion']['id'], FcefynAppServer.public_id(4))
 
+    def test_registrar(self):
+        '''
+        Testea la funcion para registrar un usuario
+
+        '''
+        good_user = dict(
+            registro=dict(
+                acc="nueva_acc",
+                pwd="secret",
+                nombre="gopez",
+                email="gopez@gopez-world.com"
+            )
+        )
+        response = self.app.post('/registro/', data=json.dumps(good_user), content_type='application/json')
+        self.assertTrue(json.loads(response.get_data())['registrado'])
+
+        bad_user = dict(
+            registro=dict(
+                acc="nueva_acc",
+                pwd="secret",
+                nombre="go$pez",
+                email="gopez@gopez-world.com"
+            )
+        )
+
+        response = self.app.post('/registro/', data=json.dumps(bad_user), content_type='application/json')
+        # self.assertEqual(response.status_code, 400)
+
+        incomplete_user = dict(
+            registro=dict(
+                acc="nueva_acc",
+                pwd="secret",
+                nombre="go$pez",
+            )
+        )
+
+        response = self.app.post('/registro/', data=json.dumps(incomplete_user), content_type='application/json')
+        self.assertEqual(response.status_code, 400)
 
 if __name__ == '__main__':
     unittest.main()
