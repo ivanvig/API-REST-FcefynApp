@@ -360,7 +360,10 @@ def login():
     if not request.is_json:
         abort(400)
     user = User()
-    user.loaduserfromjson(request.get_json())
+    try:
+        user.loaduserfromjson(request.get_json())
+    except:
+        abort(400)
     if user.matchdb():
         session['logged_in'] = True
         return jsonify(logged=True)
